@@ -2,14 +2,16 @@ import urllib3
 import mysql.connector
 from mysql.connector import errorcode
 import re
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from bs4 import BeautifulSoup
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 mydb = None
+# The website to be scraped
 ROOT_URL = "https://news.ycombinator.com/"
 http = urllib3.PoolManager()
 posts = []
 times = []
+
 
 def db_connect():
     global mydb
@@ -24,7 +26,7 @@ def db_connect():
     for db in mycursor:
         if "scrapping" in db:
             flag = True;
-
+    # if database does not exist, create a new database
     if flag == False:
         mycursor.execute("CREATE DATABASE scrapping")
         mycursor.execute("CREATE TABLE jobs (id INT  PRIMARY KEY, company VARCHAR(255), position VARCHAR(255), location VARCHAR(255))")
@@ -42,11 +44,12 @@ def db_connect():
     for table in mycursor:
         if "jobs" in table:
             flagT = True;
-
+    # if table does not exist in database, create a new table
     if flagT == False:
         mycursor.execute("CREATE TABLE jobs (id INT  PRIMARY KEY, company VARCHAR(255), position VARCHAR(255), location VARCHAR(255))")
 
 
+# This method returns the most latest job that exist in table
 def get_max_id():
     try:
         db_connect()
@@ -71,15 +74,14 @@ def get_max_id():
     except mysql.connector.Error as err:
         if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
             print('Something is wrong with your username or password')
-            #debug('Something is wrong with your username or password')
         elif err.errno == errorcode.ER_BAD_DB_ERROR:
             print('Database does not exist')
-            #debug('Database does not exist')
-
         else:
-            print('Some error occured')
+            print('Some error occurred')
 
-def get_links(url, posts,times):
+
+# This method scraps the data from one page and checks if next page exists.
+def get_links(url, posts, times):
     req = http.request('GET', ROOT_URL + url)
     if req.status != 200:
         print("Error:", req.status, "skipping page", url)
@@ -116,7 +118,11 @@ while next_url:
         next_url, posts, times = get_links(next_url, posts, times)
     except TypeError:
         next_url = None
-
+'''
+Here after applying the regex pattern simple string is separated 
+into company, job position and it's location and processed data
+is inserted into db
+'''
 for post in posts:
     regex = re.compile(r"\s*[Ii]s [Hh]iring|[Hh]iring|[Ii]s [Ll]ooking\s*")
     arr = re.split(regex, post['info'])
@@ -141,4 +147,3 @@ for post in posts:
     mydb.commit()
     print(mycursor.rowcount, "record inserted.")
     mycursor.close()
-  #  print(times[0].text)
